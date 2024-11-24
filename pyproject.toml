@@ -1,0 +1,34 @@
+[project]
+name = "geoimage_heic"
+description = "TBD"
+license = {text = "MIT" }
+version = "1.0"
+dependencies = [
+	'pillow',
+	'pillow-heif',
+	'piexif'
+]
+requires-python= ">= 3.12"
+readme = "README.md"
+authors = [
+    {name = "Gerard Weatherby"},
+    {email = "gerardw@alum.mit.edu"}
+]
+
+[tool.setuptools]
+package-dir = {"" = "src" }  # Tells setuptools that the root package is in the "src" directory
+
+[tool.setuptools.packages.find]
+where = ["src"]  # Specify the "src" directory to look for packages
+
+[tool.setuptools.package-data]
+your_package = ["fonts/*"]
+
+
+[project.scripts]
+geoimage = "geoimage_heic.main:main"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
