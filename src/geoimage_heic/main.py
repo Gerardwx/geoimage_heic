@@ -2,14 +2,15 @@ import os
 import subprocess
 import argparse
 import sys
+from pathlib import Path
 
 from pillow_heif import HeifImagePlugin # required to recognize HEIC
 from PIL import Image, ImageDraw, ImageFont
 
 import importlib.resources
 
-_FONT_PATH =  str(importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf')
-_FONT_PATH =  importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'
+_FONT_PATH =  Path(str(importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'))
+#_FONT_PATH =  importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'
 
 
 def heic_to_jpeg(input_path, output_path, lat, lon):
@@ -30,7 +31,7 @@ def heic_to_jpeg(input_path, output_path, lat, lon):
         # Set up the font and size
         font_size = int(min(img.size) * 0.03)  # 3% of the image size
         #font = ImageFont.truetype("/Library/Fonts/Arial.ttf", font_size)
-        font = ImageFont.truetype(_FONT_PATH, font_size)
+        font = ImageFont.truetype(_FONT_PATH.as_posix(), font_size)
 
         # Calculate the size of the footer text
         draw = ImageDraw.Draw(img)
@@ -94,6 +95,8 @@ def convert_heic_images(input_dir, output_dir):
             heic_to_jpeg(input_path, output_path, lat, lon)
 
 def main():
+    if not _FONT_PATH.is_file():
+        raise FileNotFoundError(_FONT_PATH.as_posix())
     print("N")
     parser = argparse.ArgumentParser(description="Convert HEIC images to JPEG with GPS footer")
     parser.add_argument("input_dir", help="Input directory containing HEIC files")
