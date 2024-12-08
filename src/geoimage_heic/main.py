@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 import importlib.resources
 
-_FONT_PATH =  Path(str(importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'))
+_FONT_PATH =  Path(str(importlib.resources.files(__package__) / 'fonts' /'Arimo-VariableFont_wght.ttf'))
 #_FONT_PATH =  importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'
 
 
