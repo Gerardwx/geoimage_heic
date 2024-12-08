@@ -1,5 +1,7 @@
 # geoimage_heic
-Add Latitude and Longitude to HEIC images
+Add Latitude and Longitude to HEIC images.
+
+It requires installing [exiftool](https://exiftool.org) .
 
 Usage: geoimage [input directory] [output directory]
 
