@@ -97,7 +97,6 @@ def convert_heic_images(input_dir, output_dir):
 def main():
     if not _FONT_PATH.is_file():
         raise FileNotFoundError(_FONT_PATH.as_posix())
-    print("N")
     parser = argparse.ArgumentParser(description="Convert HEIC images to JPEG with GPS footer")
     parser.add_argument("input_dir", help="Input directory containing HEIC files")
     parser.add_argument("output_dir", help="Output directory for converted JPEG files")
