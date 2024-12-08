@@ -2,7 +2,7 @@
 name = "geoimage_heic"
 description = "TBD"
 license = {text = "MIT" }
-version = "1.1"
+version = "1.2.1"
 dependencies = [
 	'pillow',
 	'pillow-heif',
