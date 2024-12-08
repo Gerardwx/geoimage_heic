@@ -58,7 +58,7 @@ def heic_to_jpeg(input_path, output_path, lat, lon):
 def get_exif_data(file_path):
     # Get metadata using exiftool
     result = subprocess.run(
-        ["/usr/local/bin/exiftool", "-n", "-GPSLatitude", "-GPSLongitude", file_path],
+        ["exiftool", "-n", "-GPSLatitude", "-GPSLongitude", file_path],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
     
