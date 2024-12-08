@@ -21,8 +21,8 @@ package-dir = {"" = "src" }  # Tells setuptools that the root package is in the 
 [tool.setuptools.packages.find]
 where = ["src"]  # Specify the "src" directory to look for packages
 
-#[tool.setuptools.package-data]
-#geoimage_heic = ["fonts/*.ttf"]
+[tool.setuptools.package-data]
+geoimage_heic = ["fonts/*.ttf"]
 
 
 [project.scripts]
@@ -30,6 +30,6 @@ geoimage = "geoimage_heic.main:main"
 
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools","wheel"]
 build-backend = "setuptools.build_meta"
 
