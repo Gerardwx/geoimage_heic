@@ -1,8 +1,8 @@
 [project]
 name = "geoimage_heic"
-description = "TBD"
+description = "Add Latitude and Longitude to HEIC images"
 license = {text = "MIT" }
-version = "1.4"
+version = "1.5"
 dependencies = [
 	'pillow',
 	'pillow-heif',
