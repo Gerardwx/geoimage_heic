@@ -24,8 +24,8 @@ def heic_to_jpeg(input_path, output_path, lat, lon):
         lon = float(lon)
         lat_hemisphere = "N" if lat >= 0 else "S"
         lon_hemisphere = "E" if lon >= 0 else "W"
-        formatted_lat = f"{abs(lat):.2f}° {lat_hemisphere}"
-        formatted_lon = f"{abs(lon):.2f}° {lon_hemisphere}"
+        formatted_lat = f"{abs(lat):.5f}° {lat_hemisphere}"
+        formatted_lon = f"{abs(lon):.5f}° {lon_hemisphere}"
         footer_text = f"Latitude: {formatted_lat}, Longitude: {formatted_lon}"
 
         # Set up the font and size
