@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import os
-import subprocess
 import argparse
 import sys
 import re
 from pathlib import Path
 
+import exifread
 from pillow_heif import HeifImagePlugin  # required to recognize HEIC
 from PIL import Image, ImageDraw, ImageFont
 import importlib.resources
@@ -59,20 +59,35 @@ def heic_to_jpeg(input_path, output_path, lat, lon):
         new_img.save(output_path, "JPEG")
         print(f"Saved image to {output_path}")
 
+import piexif
 
 def get_exif_data(file_path):
-    """Extract GPSLatitude and GPSLongitude via exiftool."""
-    result = subprocess.run(
-        ["exiftool", "-n", "-GPSLatitude", "-GPSLongitude", file_path],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    lat = lon = None
-    for line in result.stdout.splitlines():
-        if "GPS Latitude" in line:
-            lat = line.split(":", 1)[1].strip()
-        elif "GPS Longitude" in line:
-            lon = line.split(":", 1)[1].strip()
-    return lat, lon
+    """Extract GPSLatitude and GPSLongitude from HEIC file using pillow-heif + piexif."""
+    try:
+        with Image.open(file_path) as img:
+            exif_bytes = img.info.get("exif")
+            if not exif_bytes:
+                return None, None
+            exif_dict = piexif.load(exif_bytes)
+
+            gps = exif_dict.get("GPS", {})
+            lat = gps.get(piexif.GPSIFD.GPSLatitude)
+            lon = gps.get(piexif.GPSIFD.GPSLongitude)
+            lat_ref = gps.get(piexif.GPSIFD.GPSLatitudeRef, b'N').decode()
+            lon_ref = gps.get(piexif.GPSIFD.GPSLongitudeRef, b'E').decode()
+
+            def to_deg(values, ref):
+                d, m, s = [v[0] / v[1] for v in values]
+                sign = 1 if ref in ('N', 'E') else -1
+                return sign * (d + m / 60 + s / 3600)
+
+            if lat and lon:
+                return to_deg(lat, lat_ref), to_deg(lon, lon_ref)
+            return None, None
+    except Exception as e:
+        print(f"Error reading EXIF from {file_path}: {e}", file=sys.stderr)
+        return None, None
+
 
 
 def natural_key(s):
@@ -169,3 +184,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
