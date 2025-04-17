@@ -1,110 +1,171 @@
+#!/usr/bin/env python3
+
 import os
 import subprocess
 import argparse
 import sys
+import re
 from pathlib import Path
 
-from pillow_heif import HeifImagePlugin # required to recognize HEIC
+from pillow_heif import HeifImagePlugin  # required to recognize HEIC
 from PIL import Image, ImageDraw, ImageFont
-
 import importlib.resources
 
-_FONT_PATH =  Path(str(importlib.resources.files(__package__) / 'fonts' /'Arimo-VariableFont_wght.ttf'))
-#_FONT_PATH =  importlib.resources.files('fonts') / 'Arimo-VariableFont_wght.ttf'
+# For plotting
+import matplotlib.pyplot as plt
+import geopandas as gpd
+from shapely.geometry import Point
+import contextily as ctx
+import math
+
+# Path to your font resource
+_FONT_PATH = Path(str(importlib.resources.files(__package__) / 'fonts' / 'Arimo-VariableFont_wght.ttf'))
 
 
 def heic_to_jpeg(input_path, output_path, lat, lon):
-    # Open HEIC image and convert it to RGB JPEG format
+    """Convert HEIC to JPEG with GPS footer text."""
     with Image.open(input_path) as img:
         img = img.convert("RGB")
 
-        # Prepare latitude and longitude footer text
-        # Format latitude and longitude with N/S and E/W indicators
-        lat = float(lat)
-        lon = float(lon)
-        lat_hemisphere = "N" if lat >= 0 else "S"
-        lon_hemisphere = "E" if lon >= 0 else "W"
-        formatted_lat = f"{abs(lat):.5f}° {lat_hemisphere}"
-        formatted_lon = f"{abs(lon):.5f}° {lon_hemisphere}"
+        # Prepare footer text
+        lat_f = float(lat)
+        lon_f = float(lon)
+        lat_hem = "N" if lat_f >= 0 else "S"
+        lon_hem = "E" if lon_f >= 0 else "W"
+        formatted_lat = f"{abs(lat_f):.5f}° {lat_hem}"
+        formatted_lon = f"{abs(lon_f):.5f}° {lon_hem}"
         footer_text = f"Latitude: {formatted_lat}, Longitude: {formatted_lon}"
 
-        # Set up the font and size
-        font_size = int(min(img.size) * 0.03)  # 3% of the image size
-        #font = ImageFont.truetype("/Library/Fonts/Arial.ttf", font_size)
+        # Font setup
+        font_size = int(min(img.size) * 0.03)
         font = ImageFont.truetype(_FONT_PATH.as_posix(), font_size)
 
-        # Calculate the size of the footer text
+        # Measure text
         draw = ImageDraw.Draw(img)
-        text_bbox = draw.textbbox((0, 0), footer_text, font=font)
-        text_width = text_bbox[2] - text_bbox[0]
-        text_height = text_bbox[3] - text_bbox[1]
+        bbox = draw.textbbox((0, 0), footer_text, font=font)
+        text_w = bbox[2] - bbox[0]
+        text_h = bbox[3] - bbox[1]
 
-        # Create a new image with extra space for the footer
-        footer_height = text_height + 20  # Add padding around text
-        new_img = Image.new("RGB", (img.width, img.height + footer_height), "white")
-        new_img.paste(img, (0, 0))  # Paste original image on top
+        # Create new image with footer space
+        footer_h = text_h + 20
+        new_img = Image.new("RGB", (img.width, img.height + footer_h), "white")
+        new_img.paste(img, (0, 0))
 
-        # Draw the footer text on the white footer area
+        # Draw footer
         draw = ImageDraw.Draw(new_img)
-        text_position = ((new_img.width - text_width) // 2, img.height + 10)
-        draw.text(text_position, footer_text, font=font, fill="black")
+        pos = ((new_img.width - text_w) // 2, img.height + 10)
+        draw.text(pos, footer_text, font=font, fill="black")
 
-        # Save the new image with the footer as a JPEG
         new_img.save(output_path, "JPEG")
         print(f"Saved image to {output_path}")
 
 
-
 def get_exif_data(file_path):
-    # Get metadata using exiftool
+    """Extract GPSLatitude and GPSLongitude via exiftool."""
     result = subprocess.run(
         ["exiftool", "-n", "-GPSLatitude", "-GPSLongitude", file_path],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
-    
-    # Parse latitude and longitude from exiftool output
-    lat, lon = None, None
+    lat = lon = None
     for line in result.stdout.splitlines():
         if "GPS Latitude" in line:
-            lat = line.split(":")[1].strip()
+            lat = line.split(":", 1)[1].strip()
         elif "GPS Longitude" in line:
-            lon = line.split(":")[1].strip()
-    
+            lon = line.split(":", 1)[1].strip()
     return lat, lon
 
+
+def natural_key(s):
+    """Key for natural sorting of filenames with numbers."""
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", s)]
+
+
+def plot_locations(points, output_dir):
+    """
+    Plot points on a satellite basemap with 40% margin and non-overlapping labels.
+    """
+    coords = [(float(lon), float(lat)) for lat, lon, _ in points]
+    names = [name for _, _, name in points]
+    prefix = os.path.commonprefix(names)
+    labels = [n[len(prefix):] if n.startswith(prefix) else n for n in names]
+
+    gdf = gpd.GeoDataFrame({'label': labels}, geometry=[Point(xy) for xy in coords], crs='EPSG:4326')
+    gdf_web = gdf.to_crs(epsg=3857)
+
+    minx, miny, maxx, maxy = gdf_web.total_bounds
+    dx, dy = (maxx - minx) * 0.4, (maxy - miny) * 0.4
+    bounds = (minx - dx, miny - dy, maxx + dx, maxy + dy)
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    gdf_web.plot(ax=ax, color='red', marker='o', markersize=50, zorder=2)
+
+    ax.set_xlim(bounds[0], bounds[2])
+    ax.set_ylim(bounds[1], bounds[3])
+
+    ctx.add_basemap(ax, source=ctx.providers.Esri.WorldImagery, crs=gdf_web.crs, zoom=14, zorder=1)
+
+    offset_mag = min((maxx - minx), (maxy - miny)) * 0.03
+    n = len(gdf_web)
+
+    for i, (pt, label) in enumerate(zip(gdf_web.geometry, gdf_web['label'])):
+        angle = 2 * math.pi * i / n
+        dx_off = math.cos(angle) * offset_mag
+        dy_off = math.sin(angle) * offset_mag
+        ax.text(pt.x + dx_off, pt.y + dy_off, label,
+                fontsize=8, ha='center', va='center',
+                bbox=dict(boxstyle='round,pad=0.2', fc='white', ec='none', alpha=0.7),
+                zorder=3)
+
+    ax.axis('off')
+    map_path = os.path.join(output_dir, 'map.png')
+    fig.savefig(map_path, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    print(f"Map saved to {map_path}")
+
+
 def convert_heic_images(input_dir, output_dir):
-    # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
-    
-    # Process each HEIC file in the input directory
-    for file_name in os.listdir(input_dir):
-        if file_name.lower().endswith(".heic"):
-            input_path = os.path.join(input_dir, file_name)
-            output_name = os.path.splitext(file_name)[0] + ".jpg"
-            output_path = os.path.join(output_dir, output_name)
-            
-            # Get latitude and longitude using exiftool
-            lat, lon = get_exif_data(input_path)
-            
-            # Skip files without GPS data
+    manifest_path = os.path.join(output_dir, 'manifest.html')
+    points = []
+    # Gather and sort filenames
+    file_names = [f for f in os.listdir(input_dir) if f.lower().endswith('.heic')]
+    file_names.sort(key=natural_key)
+    with open(manifest_path, 'w') as manifest:
+        manifest.write('<!DOCTYPE html>\n<html lang="en">\n<head>\n')
+        manifest.write('  <meta charset="UTF-8">\n')
+        manifest.write('  <title>Photo locations</title>\n')
+        manifest.write('</head>\n<body>\n')
+        manifest.write('  <h1>Photo locations</h1>\n')
+        manifest.write('  <ul>\n')
+        for file_name in file_names:
+            in_path = os.path.join(input_dir, file_name)
+            out_name = os.path.splitext(file_name)[0] + '.jpg'
+            out_path = os.path.join(output_dir, out_name)
+            lat, lon = get_exif_data(in_path)
             if lat is None or lon is None:
-                print(f"{file_name} missing lat or lon",file=sys.stderr)
+                print(f"{file_name} missing GPS data", file=sys.stderr)
                 continue
-            
-            # Convert and save the image with the footer
-            heic_to_jpeg(input_path, output_path, lat, lon)
+            heic_to_jpeg(in_path, out_path, lat, lon)
+            points.append((lat, lon, out_name))
+            maps_url = f"https://www.google.com/maps?q={lat},{lon}"
+            manifest.write(f'    <li><a href="{maps_url}">{out_name}</a></li>\n')
+        manifest.write('  </ul>\n')
+        manifest.write('</body>\n</html>\n')
+    print(f"Manifest saved to {manifest_path}")
+    if points:
+        plot_locations(points, output_dir)
+
 
 def main():
     if not _FONT_PATH.is_file():
-        raise FileNotFoundError(_FONT_PATH.as_posix())
-    parser = argparse.ArgumentParser(description="Convert HEIC images to JPEG with GPS footer")
-    parser.add_argument("input_dir", help="Input directory containing HEIC files")
-    parser.add_argument("output_dir", help="Output directory for converted JPEG files")
-    
+        raise FileNotFoundError(f"Font not found at {_FONT_PATH}")
+    parser = argparse.ArgumentParser(
+        description="Convert HEIC to JPEG, generate HTML manifest, plot locations"
+    )
+    parser.add_argument('input_dir', help='Directory of HEIC files')
+    parser.add_argument('output_dir', help='Directory for outputs')
     args = parser.parse_args()
-    
     convert_heic_images(args.input_dir, args.output_dir)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
-

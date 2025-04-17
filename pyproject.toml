@@ -4,9 +4,13 @@ description = "Add Latitude and Longitude to HEIC images"
 license = {text = "MIT" }
 version = "1.6"
 dependencies = [
+	'contextily',
+	'geopandas',
+	'matplotlib',
 	'pillow',
 	'pillow-heif',
-	'piexif'
+	'piexif',
+	'shapely'
 ]
 requires-python= ">= 3.12"
 readme = "README.md"
